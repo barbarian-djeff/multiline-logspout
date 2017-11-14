@@ -210,27 +210,29 @@ func TestCacheExpiration(t *testing.T) {
 }
 
 func TestTCPInit(t *testing.T) {
-	assert := assert.New(t)
-	l, err := net.Listen("tcp", "localhost:0")
-	assert.Nil(err)
-	defer l.Close()
+	assertProtocol(t, "tcp")
+}
 
-	var r router.Route
-	r.Options = make(map[string]string)
-	r.Options["transport"] = "tcp"
-	r.Address = l.Addr().String()
+func TestUDPInit(t *testing.T) {
+	assertProtocol(t, "udp")
+}
+
+func assertProtocol(t *testing.T, protocol string) {
+	assert := assert.New(t)
+	listener, err, r := createRoute(assert, protocol)
+	defer listener.Close()
 	_, err = NewLogstashAdapter(&r)
 	assert.Nil(err)
 }
 
-func TestUDPInit(t *testing.T) {
-	assert := assert.New(t)
+func createRoute(assert *assert.Assertions, protocol string) (net.Listener, error, router.Route) {
+	l, err := net.Listen("tcp", "localhost:0") // udp is not supported, use tcp for test purpose
+	assert.Nil(err)
 	var r router.Route
 	r.Options = make(map[string]string)
-	r.Options["transport"] = "udp"
-	r.Address = "localhost:0"
-	_, err := NewLogstashAdapter(&r)
-	assert.Nil(err)
+	r.Address = l.Addr().String()
+	r.Options["transport"] = protocol
+	return l, err, r
 }
 
 func makeDummyContainer(id string) docker.Container {
