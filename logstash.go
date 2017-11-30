@@ -1,10 +1,10 @@
 package logstash
 
 import (
-	"github.com/barbarian-djeff/multiline-logspout/multiline"
 	"encoding/json"
 	"errors"
 	_ "expvar"
+	"github.com/barbarian-djeff/multiline-logspout/multiline"
 	"log"
 	"net"
 	"regexp"
@@ -53,7 +53,7 @@ const (
 	// group 3: start with 'Caused by'
 	// group 4: start with the path of a java class followed by ':'
 	// group 5: start with '   ...'
-	IsMultilineDefaultPattern = `(^\s*$)|(^\s+at)|(^Caused by:)|(^[a-z]+[a-zA-Z0-9\.$_]+:\s)|(^\s+\.{3})`
+	IsMultilineDefaultPattern             = `(^\s*$)|(^\s+at)|(^Caused by:)|(^[a-z]+[a-zA-Z0-9\.$_]+:\s)|(^\s+\.{3})`
 	DefaultSpringBootTimestampAndLogLevel = `([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3})\s+(\w*)`
 )
 

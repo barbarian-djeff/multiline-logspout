@@ -2,17 +2,18 @@ package logstash
 
 import (
 	"encoding/json"
-	"github.com/fsouza/go-dockerclient"
-	"github.com/gliderlabs/logspout/router"
-	_ "github.com/gliderlabs/logspout/transports/tcp"
-	_ "github.com/gliderlabs/logspout/transports/udp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"net"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gliderlabs/logspout/router"
+	_ "github.com/gliderlabs/logspout/transports/tcp"
+	_ "github.com/gliderlabs/logspout/transports/udp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/fsouza/go-dockerclient"
 )
 
 func makeMockWriter() (writer, *[]string) {

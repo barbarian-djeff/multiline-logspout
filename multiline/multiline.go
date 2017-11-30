@@ -2,10 +2,11 @@ package multiline
 
 import (
 	"fmt"
-	"github.com/gliderlabs/logspout/router"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gliderlabs/logspout/router"
 )
 
 type MultilineConfig struct {
