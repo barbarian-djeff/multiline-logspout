@@ -17,6 +17,7 @@ import (
 	"github.com/gliderlabs/logspout/router"
 	"github.com/rcrowley/go-metrics"
 	"github.com/rcrowley/go-metrics/exp"
+	"strings"
 )
 
 var (
@@ -271,10 +272,10 @@ func (a *LogstashAdapter) serialize(msg *router.Message) ([]byte, error) {
 		Image:    msg.Container.Config.Image,
 		Hostname: msg.Container.Config.Hostname,
 	}
-	componentInfo := ComponentInfo{
-		Name:    msg.Container.Config.Labels["com.docker.compose.service"],
-		Version: msg.Container.Config.Labels["com.mm.version"],
-		Env:     msg.Container.Config.Labels["com.mm.env"],
+
+	dockerInfo.Labels = make(map[string]string)
+	for label, value := range msg.Container.Config.Labels {
+		dockerInfo.Labels[strings.Replace(label, ".", "_", -1)] = value
 	}
 
 	err := json.Unmarshal([]byte(msg.Data), &jsonMsg)
@@ -283,7 +284,6 @@ func (a *LogstashAdapter) serialize(msg *router.Message) ([]byte, error) {
 		msgToSend := LogstashMessage{
 			Message:   msg.Data,
 			Docker:    dockerInfo,
-			Component: componentInfo,
 			Stream:    msg.Source,
 		}
 		js, err = json.Marshal(msgToSend)
@@ -293,7 +293,6 @@ func (a *LogstashAdapter) serialize(msg *router.Message) ([]byte, error) {
 	} else {
 		// the message is already in JSON just add the docker specific fields as a nested structure
 		jsonMsg["docker"] = dockerInfo
-		jsonMsg["component"] = componentInfo
 		js, err = json.Marshal(jsonMsg)
 		if err != nil {
 			return nil, err
@@ -304,10 +303,11 @@ func (a *LogstashAdapter) serialize(msg *router.Message) ([]byte, error) {
 }
 
 type DockerInfo struct {
-	Name     string `json:"name"`
-	ID       string `json:"id"`
-	Image    string `json:"image"`
-	Hostname string `json:"hostname"`
+	Name     string            `json:"name"`
+	ID       string            `json:"id"`
+	Image    string            `json:"image"`
+	Hostname string            `json:"hostname"`
+	Labels   map[string]string `json:"labels"`
 }
 
 type ComponentInfo struct {
@@ -320,7 +320,6 @@ type LogstashMessage struct {
 	Message   string        `json:"message"`
 	Stream    string        `json:"stream"`
 	Docker    DockerInfo    `json:"docker"`
-	Component ComponentInfo `json:"component"`
 }
 
 // writers
