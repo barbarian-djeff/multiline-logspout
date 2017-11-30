@@ -33,13 +33,14 @@ type newMultilineBufferFn func() (multiline.MultiLine, error)
 
 // LogstashAdapter is an adapter that streams TCP JSON to Logstash.
 type LogstashAdapter struct {
-	write         writer
-	route         *router.Route
-	cache         map[string]*multiline.MultiLine
-	cacheTTL      time.Duration
-	cachedLines   metrics.Gauge
-	mkBuffer      newMultilineBufferFn
-	cleanupRegExp *regexp.Regexp
+	write            writer
+	route            *router.Route
+	cache            map[string]*multiline.MultiLine
+	cacheTTL         time.Duration
+	cachedLines      metrics.Gauge
+	mkBuffer         newMultilineBufferFn
+	cleanupRegExp    *regexp.Regexp
+	doNotSendJustLog bool
 }
 
 type ControlCode int
@@ -101,6 +102,8 @@ func newLogstashAdapter(route *router.Route, write writer) *LogstashAdapter {
 	cachedLines := metrics.NewGauge()
 	metrics.Register(route.ID+"_cached_lines", cachedLines)
 
+	doNotSendJustLog := os.Getenv("DO_NOT_SEND_JUST_LOG") == "true"
+
 	return &LogstashAdapter{
 		route:       route,
 		write:       write,
@@ -117,7 +120,8 @@ func newLogstashAdapter(route *router.Route, write writer) *LogstashAdapter {
 					MaxLines:  maxLines,
 				})
 		},
-		cleanupRegExp: cleanupRegExp,
+		cleanupRegExp:    cleanupRegExp,
+		doNotSendJustLog: doNotSendJustLog,
 	}
 }
 
@@ -245,7 +249,7 @@ func (a *LogstashAdapter) sendMessage(msg *router.Message) error {
 		return err
 	}
 
-	if os.Getenv("DO_NOT_SEND_JUST_LOG") == "true" {
+	if a.doNotSendJustLog {
 		log.Printf("buffer is not sent to logstash: %s\n", string(buff))
 	} else {
 		_, err = a.write(buff)
