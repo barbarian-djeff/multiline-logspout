@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	_ "expvar"
-	"github.com/barbarian-djeff/multiline-logspout/multiline"
-	"log"
 	"net"
 	"regexp"
 	"strconv"
 	"time"
 
-	"fmt"
+	"github.com/barbarian-djeff/multiline-logspout/multiline"
+
+	"log"
+	"os"
+
 	"github.com/gliderlabs/logspout/router"
 	"github.com/rcrowley/go-metrics"
 	"github.com/rcrowley/go-metrics/exp"
@@ -22,7 +24,7 @@ var (
 )
 
 func init() {
-	router.AdapterFactories.Register(NewLogstashAdapter, "logstash")
+	router.AdapterFactories.Register(NewLogstashAdapter, "multiline")
 	exp.Exp(metrics.DefaultRegistry)
 	metrics.Register("logstash_message_rate", logMeter)
 }
@@ -31,13 +33,13 @@ type newMultilineBufferFn func() (multiline.MultiLine, error)
 
 // LogstashAdapter is an adapter that streams TCP JSON to Logstash.
 type LogstashAdapter struct {
-	write               writer
-	route               *router.Route
-	cache               map[string]*multiline.MultiLine
-	cacheTTL            time.Duration
-	cachedLines         metrics.Gauge
-	mkBuffer            newMultilineBufferFn
-	cleanupRegExp       *regexp.Regexp
+	write         writer
+	route         *router.Route
+	cache         map[string]*multiline.MultiLine
+	cacheTTL      time.Duration
+	cachedLines   metrics.Gauge
+	mkBuffer      newMultilineBufferFn
+	cleanupRegExp *regexp.Regexp
 }
 
 type ControlCode int
@@ -52,11 +54,11 @@ const (
 	// group 3: start with 'Caused by'
 	// group 4: start with the path of a java class followed by ':'
 	// group 5: start with '   ...'
-	IsMultilineDefaultPattern             = `(^\s*$)|(^\s+at)|(^Caused by:)|(^[a-z]+[a-zA-Z0-9\.$_]+:\s)|(^\s+\.{3})`
+	IsMultilineDefaultPattern = `(^\s*$)|(^\s+at)|(^Caused by:)|(^[a-z]+[a-zA-Z0-9\.$_]+:\s)|(^\s+\.{3})`
 )
 
 func newLogstashAdapter(route *router.Route, write writer) *LogstashAdapter {
-	fmt.Println("create multiline adapter with options", route.Options)
+	log.Printf("# create multiline adapter with options %s\n", route.Options)
 
 	patternString, ok := route.Options["pattern"]
 	if !ok {
@@ -115,7 +117,7 @@ func newLogstashAdapter(route *router.Route, write writer) *LogstashAdapter {
 					MaxLines:  maxLines,
 				})
 		},
-		cleanupRegExp:       cleanupRegExp,
+		cleanupRegExp: cleanupRegExp,
 	}
 }
 
@@ -239,13 +241,17 @@ func (a *LogstashAdapter) sendMessages(msgs []*router.Message) {
 
 func (a *LogstashAdapter) sendMessage(msg *router.Message) error {
 	buff, err := a.serialize(msg)
-
 	if err != nil {
 		return err
 	}
-	_, err = a.write(buff)
-	if err != nil {
-		return err
+
+	if os.Getenv("DO_NOT_SEND_JUST_LOG") == "true" {
+		log.Printf("buffer is not sent to logstash: %s\n", string(buff))
+	} else {
+		_, err = a.write(buff)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -307,10 +313,10 @@ type ComponentInfo struct {
 }
 
 type LogstashMessage struct {
-	Message       string        `json:"message"`
-	Stream        string        `json:"stream"`
-	Docker        DockerInfo    `json:"docker"`
-	Component     ComponentInfo `json:"component"`
+	Message   string        `json:"message"`
+	Stream    string        `json:"stream"`
+	Docker    DockerInfo    `json:"docker"`
+	Component ComponentInfo `json:"component"`
 }
 
 // writers
