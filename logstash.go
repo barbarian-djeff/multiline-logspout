@@ -38,7 +38,6 @@ type LogstashAdapter struct {
 	cachedLines         metrics.Gauge
 	mkBuffer            newMultilineBufferFn
 	cleanupRegExp       *regexp.Regexp
-	springbootTimestamp *regexp.Regexp
 }
 
 type ControlCode int
@@ -54,7 +53,6 @@ const (
 	// group 4: start with the path of a java class followed by ':'
 	// group 5: start with '   ...'
 	IsMultilineDefaultPattern             = `(^\s*$)|(^\s+at)|(^Caused by:)|(^[a-z]+[a-zA-Z0-9\.$_]+:\s)|(^\s+\.{3})`
-	DefaultSpringBootTimestampAndLogLevel = `([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3})\s+(\w*)`
 )
 
 func newLogstashAdapter(route *router.Route, write writer) *LogstashAdapter {
@@ -96,13 +94,7 @@ func newLogstashAdapter(route *router.Route, write writer) *LogstashAdapter {
 		cleanupPattern = `\033\[[0-9;]*?m`
 	}
 
-	springbootTimestampPattern, ok := route.Options["springboot_timestamp_pattern"]
-	if !ok {
-		springbootTimestampPattern = DefaultSpringBootTimestampAndLogLevel
-	}
-
 	cleanupRegExp := regexp.MustCompile(cleanupPattern)
-	springbootTimestamp := regexp.MustCompile(springbootTimestampPattern)
 
 	cachedLines := metrics.NewGauge()
 	metrics.Register(route.ID+"_cached_lines", cachedLines)
@@ -124,7 +116,6 @@ func newLogstashAdapter(route *router.Route, write writer) *LogstashAdapter {
 				})
 		},
 		cleanupRegExp:       cleanupRegExp,
-		springbootTimestamp: springbootTimestamp,
 	}
 }
 
@@ -277,7 +268,6 @@ func (a *LogstashAdapter) serialize(msg *router.Message) ([]byte, error) {
 	}
 
 	err := json.Unmarshal([]byte(msg.Data), &jsonMsg)
-	ok, msgTimestamp, msgLogLevel := a.extractTimestamp(msg.Data)
 	if err != nil {
 		// the message is not in JSON make a new JSON message
 		msgToSend := LogstashMessage{
@@ -285,10 +275,6 @@ func (a *LogstashAdapter) serialize(msg *router.Message) ([]byte, error) {
 			Docker:    dockerInfo,
 			Component: componentInfo,
 			Stream:    msg.Source,
-		}
-		if ok {
-			msgToSend.JavaTimestamp = msgTimestamp
-			msgToSend.JavaLogLevel = msgLogLevel
 		}
 		js, err = json.Marshal(msgToSend)
 		if err != nil {
@@ -298,10 +284,6 @@ func (a *LogstashAdapter) serialize(msg *router.Message) ([]byte, error) {
 		// the message is already in JSON just add the docker specific fields as a nested structure
 		jsonMsg["docker"] = dockerInfo
 		jsonMsg["component"] = componentInfo
-		if msgTimestamp != "" {
-			jsonMsg["java_timestamp"] = msgTimestamp
-			jsonMsg["log_level"] = msgLogLevel
-		}
 		js, err = json.Marshal(jsonMsg)
 		if err != nil {
 			return nil, err
@@ -309,15 +291,6 @@ func (a *LogstashAdapter) serialize(msg *router.Message) ([]byte, error) {
 	}
 
 	return js, nil
-}
-
-func (a *LogstashAdapter) extractTimestamp(msg string) (ok bool, ts string, logLevel string) {
-	matches := a.springbootTimestamp.FindStringSubmatch(msg)
-	if matches != nil && len(matches) == 3 {
-		return true, matches[1], matches[2]
-	} else {
-		return false, "", ""
-	}
 }
 
 type DockerInfo struct {
@@ -334,8 +307,6 @@ type ComponentInfo struct {
 }
 
 type LogstashMessage struct {
-	JavaTimestamp string        `json:"java_timestamp,omitempty"`
-	JavaLogLevel  string        `json:"log_level,omitempty"`
 	Message       string        `json:"message"`
 	Stream        string        `json:"stream"`
 	Docker        DockerInfo    `json:"docker"`

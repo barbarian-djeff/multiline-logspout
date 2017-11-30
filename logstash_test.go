@@ -104,14 +104,12 @@ func TestStreamMultilineStacktrace(t *testing.T) {
 	data := parseResult(assert, (*results)[0])
 
 	assert.Equal(strings.Join(lines[0:7], "\n"), data["message"])
+	assert.Equal("FOOOOO", data["stream"])
+	assert.Equal("2017-11-08 10:34:08.023", data["message"].(string)[0:23])
 	assertDockerInfo(assert, &container, data["docker"])
-	assert.Equal("2017-11-08 10:34:08.023", data["java_timestamp"])
-	assert.Equal("WARN", data["log_level"])
 
 	data = parseResult(assert, (*results)[1])
 	assert.Equal(lines[7], data["message"])
-	assert.Equal(nil, data["java_timestamp"])
-	assert.Equal(nil, data["log_level"])
 }
 
 func TestStreamJson(t *testing.T) {
